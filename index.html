@@ -159,6 +159,60 @@
     @media (min-width: 900px)  { .cards { grid-template-columns: repeat(3, 1fr); } }
     @media (min-width: 1200px) { .cards { grid-template-columns: repeat(4, 1fr); } }
 
+    /* タブ */
+    .tabs {
+      display: flex; border-bottom: 2px solid var(--border);
+      padding: 0 12px; background: var(--card);
+    }
+    .tab-btn {
+      padding: 10px 18px; font-size: 0.9rem; font-weight: 600;
+      background: none; border: none; color: var(--sub); cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -2px;
+      transition: all 0.15s;
+    }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    /* カレンダービュー */
+    .calendar-view {
+      padding: 10px 12px calc(env(safe-area-inset-bottom,0) + 20px);
+      display: grid; gap: 8px;
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (min-width: 600px) { .calendar-view { grid-template-columns: repeat(4, 1fr); } }
+    @media (min-width: 900px) { .calendar-view { grid-template-columns: repeat(6, 1fr); } }
+
+    .cal-month {
+      background: var(--card); border-radius: 14px;
+      border: 1px solid var(--border);
+      padding: 12px 10px; text-align: center; position: relative;
+    }
+    .cal-month.has-dividend { border-color: var(--primary); }
+    .cal-month.is-current   { background: #e8f0fe; }
+    @media (prefers-color-scheme: dark) {
+      .cal-month.is-current { background: #1a2a4a; }
+    }
+    .cal-month-name  { font-size: 0.75rem; color: var(--sub); font-weight: 600; }
+    .cal-month-num   { font-size: 1.6rem; font-weight: 800; line-height: 1.2; }
+    .cal-amount      { font-size: 0.8rem; font-weight: 700; color: var(--primary); margin-top: 4px; }
+    .cal-stocks      { font-size: 0.65rem; color: var(--sub); margin-top: 4px; line-height: 1.4; }
+    .cal-today-badge {
+      position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+      background: var(--primary); color: #fff;
+      font-size: 0.6rem; font-weight: 700; padding: 1px 6px; border-radius: 10px;
+    }
+
+    /* 年間サマリーバナー */
+    .year-summary {
+      margin: 8px 12px 0;
+      background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
+      border-radius: 16px; padding: 16px 20px; color: #fff;
+      text-align: center;
+    }
+    .year-summary .ys-label { font-size: 0.75rem; opacity: 0.7; }
+    .year-summary .ys-value { font-size: 2rem; font-weight: 800; margin-top: 4px; }
+    .year-summary .ys-value span { font-size: 1rem; }
+    .year-summary .ys-sub   { font-size: 0.75rem; opacity: 0.6; margin-top: 4px; }
+
     /* 銘柄カード */
     .card {
       background: var(--card); border-radius: var(--radius);
@@ -230,6 +284,11 @@
   </button>
 </header>
 
+<div class="tabs">
+  <button class="tab-btn active" id="tabDashboard">ダッシュボード</button>
+  <button class="tab-btn" id="tabCalendar">📅 配当カレンダー</button>
+</div>
+<div id="viewDashboard">
 <div class="portfolio-banner" id="portfolioBanner" style="display:none"></div>
 <div class="toolbar">
   <input class="search-box" id="searchBox" type="search" placeholder="🔍 銘柄名・コードで検索">
@@ -249,11 +308,38 @@
 <div class="cards" id="cards">
   <div class="placeholder">読み込み中...</div>
 </div>
+</div><!-- /viewDashboard -->
+
+<div id="viewCalendar" style="display:none">
+  <div class="year-summary" id="yearSummary">
+    <div class="ys-label">年間配当見込み</div>
+    <div class="ys-value">-</div>
+    <div class="ys-sub">保有数量・配当月を入力すると計算されます</div>
+  </div>
+  <div class="calendar-view" id="calendarGrid"></div>
+</div>
 
 <script>
   let isLoading = false;
   let allItems = [];
   let activeFilter = 'all';
+  let activeTab = 'dashboard';
+
+  // タブ切り替え
+  document.getElementById('tabDashboard').addEventListener('click', function() {
+    activeTab = 'dashboard';
+    document.getElementById('tabDashboard').classList.add('active');
+    document.getElementById('tabCalendar').classList.remove('active');
+    document.getElementById('viewDashboard').style.display = '';
+    document.getElementById('viewCalendar').style.display = 'none';
+  });
+  document.getElementById('tabCalendar').addEventListener('click', function() {
+    activeTab = 'calendar';
+    document.getElementById('tabCalendar').classList.add('active');
+    document.getElementById('tabDashboard').classList.remove('active');
+    document.getElementById('viewDashboard').style.display = 'none';
+    document.getElementById('viewCalendar').style.display = '';
+  });
 
   function getFiltered() {
     const q = document.getElementById('searchBox').value.trim().toLowerCase();
@@ -328,6 +414,7 @@
     renderStats(allItems);
     renderCards(getFiltered());
     renderPortfolio(res.portfolio);
+    renderCalendar(res.calendar, res.portfolio);
   }
 
   function renderStats(items) {
@@ -438,6 +525,45 @@
           '<div class="gap-label">理想利回に対して ' + pct + '%</div>' +
         '</div>' +
       '</div>';
+    }).join('');
+  }
+
+  const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+  function renderCalendar(calendar, pf) {
+    if (!calendar) return;
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const totalDiv = pf && pf.totalDividend ? pf.totalDividend : 0;
+
+    // 年間サマリー
+    const summaryEl = document.getElementById('yearSummary');
+    if (totalDiv > 0) {
+      const monthly = Math.round(totalDiv / 12);
+      summaryEl.innerHTML =
+        '<div class="ys-label">年間配当見込み</div>' +
+        '<div class="ys-value">¥<span>' + totalDiv.toLocaleString() + '</span></div>' +
+        '<div class="ys-sub">月平均 ¥' + monthly.toLocaleString() + ' ／ 週平均 ¥' +
+          Math.round(totalDiv / 52).toLocaleString() + '</div>';
+    }
+
+    // カレンダーグリッド
+    document.getElementById('calendarGrid').innerHTML = calendar.map(function(m) {
+      const isCurrent  = m.month === currentMonth;
+      const hasDiv     = m.amount > 0;
+      const cls = 'cal-month' + (hasDiv ? ' has-dividend' : '') + (isCurrent ? ' is-current' : '');
+      const stockStr   = m.stocks.length > 0
+        ? m.stocks.slice(0, 3).join('<br>') + (m.stocks.length > 3 ? '<br>他' + (m.stocks.length - 3) + '件' : '')
+        : '';
+      return '<div class="' + cls + '">' +
+        (isCurrent ? '<div class="cal-today-badge">今月</div>' : '') +
+        '<div class="cal-month-num">' + m.month + '</div>' +
+        '<div class="cal-month-name">' + MONTH_NAMES[m.month - 1] + '</div>' +
+        (hasDiv
+          ? '<div class="cal-amount">¥' + m.amount.toLocaleString() + '</div>' +
+            '<div class="cal-stocks">' + stockStr + '</div>'
+          : '<div class="cal-stocks" style="color:var(--border)">—</div>') +
+        '</div>';
     }).join('');
   }
 

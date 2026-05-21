@@ -20,7 +20,7 @@ function getDisplayData() {
 
     if (lastRow < 2) return { ok: true, items: [], updatedAt: updatedAt };
 
-    const rows = sh.getRange(2, 1, lastRow - 1, 12).getDisplayValues();
+    const rows = sh.getRange(2, 1, lastRow - 1, 13).getDisplayValues();
     const items = rows
       .filter(r => String(r[0]).trim() || String(r[1]).trim())
       .map(r => ({
@@ -33,19 +33,43 @@ function getDisplayData() {
         source:   String(r[8]).trim(),
         owned:     String(r[9]).trim(),
         cost:      String(r[10]).trim(),
-        prevClose: String(r[11]).trim(), // 前日終値
+        prevClose: String(r[11]).trim(),
+        divMonths: String(r[12]).trim(), // 配当月 "3,9" 形式
       }));
 
     // ポートフォリオ集計
     let totalValue = 0, totalDividend = 0;
+    const calendarMap = {};  // { 月(1-12): { stocks:[], amount:0 } }
+    for (let m = 1; m <= 12; m++) calendarMap[m] = { stocks: [], amount: 0 };
+
     items.forEach(item => {
       const owned = parseFloat(item.owned);
       const price = parseFloat(item.price.replace(/,/g, ''));
       const divY  = parseFloat(item.divYield);
-      if (owned > 0 && !isNaN(price)) totalValue    += owned * price;
-      if (owned > 0 && !isNaN(price) && !isNaN(divY))
-        totalDividend += owned * price * (divY / 100);
+      const annDiv = (owned > 0 && !isNaN(price) && !isNaN(divY))
+        ? owned * price * (divY / 100) : 0;
+
+      if (owned > 0 && !isNaN(price)) totalValue += owned * price;
+      if (annDiv > 0) totalDividend += annDiv;
+
+      // 配当月へ振り分け
+      if (item.divMonths && annDiv > 0) {
+        const months = item.divMonths.split(/[,、\s]+/).map(Number).filter(m => m >= 1 && m <= 12);
+        if (months.length > 0) {
+          const perMonth = Math.round(annDiv / months.length);
+          months.forEach(m => {
+            calendarMap[m].stocks.push(item.name || item.code);
+            calendarMap[m].amount += perMonth;
+          });
+        }
+      }
     });
+
+    const calendar = Object.keys(calendarMap).map(m => ({
+      month:  Number(m),
+      stocks: calendarMap[m].stocks,
+      amount: Math.round(calendarMap[m].amount),
+    }));
 
     return {
       ok: true, items: items, updatedAt: updatedAt,
@@ -53,6 +77,7 @@ function getDisplayData() {
         totalValue:    Math.round(totalValue),
         totalDividend: Math.round(totalDividend),
       },
+      calendar: calendar,
     };
 
   } catch (err) {

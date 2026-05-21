@@ -14,9 +14,9 @@ function 初期セットアップ() {
   }
 
   // ヘッダー行
-  sh.getRange(1, 1, 1, 11).setValues([[
+  sh.getRange(1, 1, 1, 13).setValues([[
     'コード', '銘柄名', '株価', '配当利回(%)', '理想利回(%)',
-    '判定', '取得対象', '最終更新', '取得元', '保有数量', '取得単価'
+    '判定', '取得対象', '最終更新', '取得元', '保有数量', '取得単価', '前日終値', '配当月'
   ]]);
 
   // 判定列（F）に数式を設定（3行目以降のサンプル）
@@ -33,8 +33,10 @@ function 初期セットアップ() {
   sh.setColumnWidth(7, 90);   // 取得対象
   sh.setColumnWidth(8, 140);  // 最終更新
   sh.setColumnWidth(9, 80);   // 取得元
-  sh.setColumnWidth(10, 90);  // 保有数量
-  sh.setColumnWidth(11, 90);  // 取得単価
+  sh.setColumnWidth(10, 90);   // 保有数量
+  sh.setColumnWidth(11, 90);   // 取得単価
+  sh.setColumnWidth(12, 90);   // 前日終値
+  sh.setColumnWidth(13, 130);  // 配当月（例: 3,9）
   sh.setFrozenRows(1);
 
   // ScriptPropertiesにスプレッドシートIDを登録

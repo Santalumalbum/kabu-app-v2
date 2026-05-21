@@ -21,11 +21,12 @@ function getStockUserIds_() {
   return keys.map(k => props.getProperty(k)).filter(Boolean);
 }
 
-// 保有管理列・前日比列
+// 保有管理列・前日比列・配当月
 const PORTFOLIO_COLS = {
-  COL_OWNED:     10,  // J: 保有数量
-  COL_COST:      11,  // K: 取得単価
-  COL_PREV_CLOSE: 12, // L: 前日終値
+  COL_OWNED:      10,  // J: 保有数量
+  COL_COST:       11,  // K: 取得単価
+  COL_PREV_CLOSE: 12,  // L: 前日終値
+  COL_DIV_MONTHS: 13,  // M: 配当月（例: "3,9" または "6,12"）
 };
 
 function getSpreadsheet_() {
