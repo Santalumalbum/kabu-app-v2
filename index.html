@@ -333,6 +333,87 @@
     .ts-bar-wrap { flex: 1; margin: 0 12px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
     .ts-bar { height: 100%; background: var(--success); border-radius: 3px; }
 
+    /* [Round1] 保有フィルター */
+    .filter-btn.active-owned { background: var(--warning); border-color: var(--warning); color: #fff; }
+
+    /* [Round1] 配当月チップ */
+    .div-month-chip {
+      display: inline-block; font-size: 0.62rem; font-weight: 700;
+      background: #e8f0fe; color: var(--primary);
+      padding: 1px 6px; border-radius: 8px; margin: 3px 2px 0 0;
+    }
+    @media (prefers-color-scheme: dark) { .div-month-chip { background: #1a2a4a; } }
+
+    /* [Round2] 今月配当バッジ */
+    .this-month-badge {
+      display: inline-block; font-size: 0.62rem; font-weight: 700;
+      background: var(--warning); color: #fff;
+      padding: 1px 7px; border-radius: 8px; margin-left: 5px; vertical-align: middle;
+    }
+
+    /* [Round3] 含み損益 */
+    .gain-row { margin-top: 5px; font-size: 0.8rem; font-weight: 600; }
+    .gain-pos { color: var(--success); }
+    .gain-neg { color: var(--danger); }
+
+    /* [Round2] 削除ボタン */
+    .btn-delete {
+      background: none; border: none; color: var(--danger);
+      font-size: 1rem; cursor: pointer; padding: 2px 8px;
+      border-radius: 8px; flex-shrink: 0;
+    }
+
+    /* [Round4] 受取記録ビュー切替 */
+    .view-toggle { display: flex; gap: 6px; padding: 10px 12px 0; }
+    .vtog-btn {
+      flex: 1; padding: 8px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--card);
+      font-size: 0.85rem; font-weight: 600; color: var(--sub);
+      cursor: pointer; text-align: center; transition: all 0.15s;
+    }
+    .vtog-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    /* [Round4] 目標バー */
+    .goal-banner {
+      margin: 8px 12px 0;
+      background: var(--card); border-radius: 14px;
+      border: 1px solid var(--border); padding: 12px 16px;
+    }
+    .goal-top { display: flex; justify-content: space-between; align-items: center; }
+    .goal-label { font-size: 0.75rem; color: var(--sub); font-weight: 600; }
+    .goal-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin: 8px 0 4px; }
+    .goal-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #4facfe, #00f2fe); transition: width 0.6s ease; }
+    .goal-sub { font-size: 0.72rem; color: var(--sub); display: flex; justify-content: space-between; }
+    .btn-goal-edit { background: none; border: none; color: var(--primary); font-size: 0.78rem; cursor: pointer; padding: 0; }
+
+    /* [Round5] エクスポート */
+    .btn-export {
+      width: 100%; margin: 4px 0 0;
+      background: none; border: 1px solid var(--border); border-radius: 10px;
+      padding: 9px; font-size: 0.85rem; color: var(--sub);
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-export:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* [Round5] 銘柄詳細モーダル */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 100; display: flex; align-items: flex-end;
+    }
+    .modal-sheet {
+      background: var(--card); border-radius: 20px 20px 0 0;
+      width: 100%; padding: 20px 20px calc(env(safe-area-inset-bottom,0px)+20px);
+      max-height: 80vh; overflow-y: auto;
+    }
+    .modal-handle {
+      width: 36px; height: 4px; background: var(--border);
+      border-radius: 2px; margin: 0 auto 16px;
+    }
+    .modal-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 12px; }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .modal-item .mi-label { font-size: 0.7rem; color: var(--sub); }
+    .modal-item .mi-value { font-size: 1rem; font-weight: 600; margin-top: 2px; }
+
     /* ローディング・エラー */
     .placeholder { text-align: center; padding: 60px 20px; color: var(--sub); font-size: 0.9rem; }
     .error-box {
@@ -370,6 +451,7 @@
     <button class="filter-btn active" id="filterAll">全て</button>
     <button class="filter-btn" id="filterBuy">買い</button>
     <button class="filter-btn" id="filterHold">様子見</button>
+    <button class="filter-btn" id="filterOwned">保有</button>
   </div>
   <select id="sortSelect" class="sort-select">
     <option value="gap">ギャップ順</option>
@@ -394,6 +476,7 @@
     <div class="ys-value">-</div>
     <div class="ys-sub">保有数量・配当月を入力すると計算されます</div>
   </div>
+  <div class="goal-banner" id="goalBanner" style="display:none"></div>
   <div class="calendar-view" id="calendarGrid"></div>
 </div>
 
@@ -434,13 +517,14 @@
   });
 
   function getFiltered() {
-    const q = document.getElementById('searchBox').value.trim().toLowerCase();
-    return allItems.filter(item => {
-      const matchFilter =
+    var q = document.getElementById('searchBox').value.trim().toLowerCase();
+    return allItems.filter(function(item) {
+      var matchFilter =
         activeFilter === 'all' ||
-        (activeFilter === 'buy'  && item.judge.indexOf('買') !== -1) ||
-        (activeFilter === 'hold' && item.judge.indexOf('買') === -1);
-      const matchSearch = !q ||
+        (activeFilter === 'buy'   && item.judge.indexOf('買') !== -1) ||
+        (activeFilter === 'hold'  && item.judge.indexOf('買') === -1) ||
+        (activeFilter === 'owned' && parseFloat(item.owned) > 0);
+      var matchSearch = !q ||
         item.name.toLowerCase().indexOf(q) !== -1 ||
         item.code.toLowerCase().indexOf(q) !== -1;
       return matchFilter && matchSearch;
@@ -449,16 +533,18 @@
 
   function setFilter(f) {
     activeFilter = f;
-    document.getElementById('filterAll') .classList.toggle('active',     f === 'all');
-    document.getElementById('filterBuy') .classList.toggle('active-buy', f === 'buy');
-    document.getElementById('filterHold').classList.toggle('active',     f === 'hold');
+    document.getElementById('filterAll')  .classList.toggle('active',       f === 'all');
+    document.getElementById('filterBuy')  .classList.toggle('active-buy',   f === 'buy');
+    document.getElementById('filterHold') .classList.toggle('active',       f === 'hold');
+    document.getElementById('filterOwned').classList.toggle('active-owned', f === 'owned');
     renderCards(getFiltered());
   }
 
-  document.getElementById('filterAll') .addEventListener('click', function() { setFilter('all');  });
-  document.getElementById('filterBuy') .addEventListener('click', function() { setFilter('buy');  });
-  document.getElementById('filterHold').addEventListener('click', function() { setFilter('hold'); });
-  document.getElementById('searchBox') .addEventListener('input',  function() { renderCards(getFiltered()); });
+  document.getElementById('filterAll')  .addEventListener('click', function() { setFilter('all');   });
+  document.getElementById('filterBuy')  .addEventListener('click', function() { setFilter('buy');   });
+  document.getElementById('filterHold') .addEventListener('click', function() { setFilter('hold');  });
+  document.getElementById('filterOwned').addEventListener('click', function() { setFilter('owned'); });
+  document.getElementById('searchBox')  .addEventListener('input', function() { renderCards(getFiltered()); });
 
   // ソート
   let sortKey = 'gap';
@@ -520,11 +606,13 @@
     }).filter(v => v !== null);
     const maxGap = gaps.length ? Math.max(...gaps).toFixed(2) : '-';
 
-    const stats = [
-      { label: '全銘柄',     value: items.length + '件',   cls: '' },
-      { label: '買い候補',   value: buyItems.length + '件', cls: buyItems.length > 0 ? 'buy' : '' },
-      { label: '平均配当利回', value: avgYield + '%',       cls: '' },
-      { label: '最大ギャップ', value: maxGap + '%',         cls: parseFloat(maxGap) > 0 ? 'buy' : '' },
+    var ownedItems = items.filter(function(i){ return parseFloat(i.owned) > 0; });
+    var stats = [
+      { label: '全銘柄',     value: items.length + '件',      cls: '' },
+      { label: '買い候補',   value: buyItems.length + '件',   cls: buyItems.length > 0 ? 'buy' : '' },
+      { label: '保有銘柄',   value: ownedItems.length + '件', cls: ownedItems.length > 0 ? 'warn' : '' },
+      { label: '平均配当利回', value: avgYield + '%',          cls: '' },
+      { label: '最大ギャップ', value: maxGap + '%',            cls: parseFloat(maxGap) > 0 ? 'buy' : '' },
     ];
 
     document.getElementById('stats').innerHTML = stats.map(s =>
@@ -535,6 +623,8 @@
     ).join('');
   }
 
+  var currentMonth = new Date().getMonth() + 1;
+
   function renderCards(items) {
     if (items.length === 0) {
       document.getElementById('cards').innerHTML =
@@ -542,79 +632,115 @@
       return;
     }
 
-    const sorted = items.slice().sort((a, b) => {
+    var sorted = items.slice().sort(function(a, b) {
       if (sortKey === 'yield') {
         return (parseFloat(b.divYield) || 0) - (parseFloat(a.divYield) || 0);
       }
       if (sortKey === 'change') {
-        const ca = (parseFloat(a.price) - parseFloat(a.prevClose)) / (parseFloat(a.prevClose) || 1);
-        const cb = (parseFloat(b.price) - parseFloat(b.prevClose)) / (parseFloat(b.prevClose) || 1);
+        var ca = (parseFloat(a.price) - parseFloat(a.prevClose)) / (parseFloat(a.prevClose) || 1);
+        var cb = (parseFloat(b.price) - parseFloat(b.prevClose)) / (parseFloat(b.prevClose) || 1);
         return (isNaN(cb) ? -99 : cb) - (isNaN(ca) ? -99 : ca);
       }
-      if (sortKey === 'code') {
-        return String(a.code).localeCompare(String(b.code));
-      }
-      // default: gap
-      const ga = parseFloat(a.divYield) - parseFloat(a.ideal);
-      const gb = parseFloat(b.divYield) - parseFloat(b.ideal);
+      if (sortKey === 'code') return String(a.code).localeCompare(String(b.code));
+      var ga = parseFloat(a.divYield) - parseFloat(a.ideal);
+      var gb = parseFloat(b.divYield) - parseFloat(b.ideal);
       return (isNaN(gb) ? -99 : gb) - (isNaN(ga) ? -99 : ga);
     });
 
-    document.getElementById('cards').innerHTML = sorted.map(item => {
-      const isBuy   = item.judge.indexOf('買') !== -1;
-      const isFail  = item.source === 'FAIL';
-      const badgeCls  = isFail ? 'badge-fail' : isBuy ? 'badge-buy' : 'badge-hold';
-      const badgeTxt  = isFail ? '取得失敗' : isBuy ? '買い' : '様子見';
+    document.getElementById('cards').innerHTML = sorted.map(function(item) {
+      var isBuy    = item.judge.indexOf('買') !== -1;
+      var isFail   = item.source === 'FAIL';
+      var badgeCls = isFail ? 'badge-fail' : isBuy ? 'badge-buy' : 'badge-hold';
+      var badgeTxt = isFail ? '取得失敗'   : isBuy ? '買い'      : '様子見';
 
-      const divY  = parseFloat(item.divYield);
-      const ideal = parseFloat(item.ideal);
-      const gap   = (!isNaN(divY) && !isNaN(ideal)) ? (divY - ideal).toFixed(2) : '-';
-      const pct   = (!isNaN(divY) && !isNaN(ideal) && ideal > 0)
+      var divY  = parseFloat(item.divYield);
+      var ideal = parseFloat(item.ideal);
+      var gap   = (!isNaN(divY) && !isNaN(ideal)) ? (divY - ideal).toFixed(2) : '-';
+      var gapPct = (!isNaN(divY) && !isNaN(ideal) && ideal > 0)
         ? Math.min(100, Math.round(divY / ideal * 100)) : 0;
 
-      const priceNum = parseFloat(item.price.replace(/,/g,''));
-      const prevNum  = parseFloat(item.prevClose);
-      let changeChip = '';
+      var priceNum = parseFloat(item.price.replace(/,/g,''));
+      var prevNum  = parseFloat(item.prevClose);
+      var changeChip = '';
       if (!isNaN(priceNum) && !isNaN(prevNum) && prevNum > 0) {
-        const diff = priceNum - prevNum;
-        const pct  = (diff / prevNum * 100).toFixed(2);
-        const cls  = diff > 0 ? 'change-up' : diff < 0 ? 'change-down' : 'change-flat';
-        const sign = diff > 0 ? '▲' : diff < 0 ? '▼' : '';
+        var diff    = priceNum - prevNum;
+        var changePct = (diff / prevNum * 100).toFixed(2);
+        var cls  = diff > 0 ? 'change-up' : diff < 0 ? 'change-down' : 'change-flat';
+        var sign = diff > 0 ? '▲' : diff < 0 ? '▼' : '';
         changeChip = '<span class="change-chip ' + cls + '">' +
-          sign + Math.abs(diff).toFixed(0) + '円 (' + (diff >= 0 ? '+' : '') + pct + '%)</span>';
+          sign + Math.abs(diff).toFixed(0) + '円 (' + (diff >= 0 ? '+' : '') + changePct + '%)</span>';
       }
-      const priceStr = item.price ? '¥' + Number(item.price.replace(/,/g,'')).toLocaleString() : '-';
+      var priceStr = item.price ? '¥' + Number(item.price.replace(/,/g,'')).toLocaleString() : '-';
 
-      return '<div class="card">' +
+      // [Round1] 配当月チップ
+      var divMonthChips = '';
+      if (item.divMonths) {
+        var months = item.divMonths.split(/[,、\s]+/).map(Number).filter(function(m){ return m >= 1 && m <= 12; });
+        divMonthChips = months.map(function(m) {
+          var isCur = m === currentMonth;
+          return '<span class="div-month-chip" style="' + (isCur ? 'background:var(--warning);color:#fff' : '') + '">' + m + '月</span>';
+        }).join('');
+      }
+
+      // [Round2] 今月配当バッジ
+      var thisMonthBadge = '';
+      if (item.divMonths) {
+        var dm = item.divMonths.split(/[,、\s]+/).map(Number);
+        if (dm.indexOf(currentMonth) !== -1) {
+          thisMonthBadge = '<span class="this-month-badge">今月配当</span>';
+        }
+      }
+
+      // [Round3] 含み損益
+      var gainRow = '';
+      var ownedNum = parseFloat(item.owned);
+      if (ownedNum > 0 && priceNum && item.cost) {
+        var costNum = parseFloat(item.cost.replace(/,/g,''));
+        if (!isNaN(costNum) && costNum > 0) {
+          var gain     = (priceNum - costNum) * ownedNum;
+          var gainPct  = ((priceNum - costNum) / costNum * 100).toFixed(1);
+          var gainCls  = gain >= 0 ? 'gain-pos' : 'gain-neg';
+          var gainSign = gain >= 0 ? '+' : '';
+          gainRow = '<div class="gain-row">' +
+            '<span class="' + gainCls + '">含み' + (gain >= 0 ? '益' : '損') + ' ' +
+            gainSign + Math.round(gain).toLocaleString() + '円 (' + gainSign + gainPct + '%)</span>' +
+            '</div>';
+        }
+      }
+
+      // 保有情報
+      var ownedRow = '';
+      if (ownedNum > 0 && priceNum) {
+        var holdVal = Math.round(ownedNum * priceNum);
+        var annDiv  = (!isNaN(divY)) ? Math.round(holdVal * divY / 100) : null;
+        ownedRow = '<div class="owned-row">' +
+          '📦 ' + ownedNum + '株保有' +
+          ' ／ 評価額 ¥' + holdVal.toLocaleString() +
+          (annDiv ? ' ／ 配当見込 ¥' + annDiv.toLocaleString() : '') +
+          '</div>';
+      }
+
+      return '<div class="card" onclick="showDetail(\'' + esc(item.code) + '\')" style="cursor:pointer">' +
         '<div class="card-top">' +
           '<div>' +
-            '<div class="card-name">' + esc(item.name) + '</div>' +
+            '<div class="card-name">' + esc(item.name) + thisMonthBadge + '</div>' +
             '<div class="card-code">' + esc(item.code) + '</div>' +
             changeChip +
           '</div>' +
           '<span class="badge ' + badgeCls + '">' + badgeTxt + '</span>' +
         '</div>' +
+        (divMonthChips ? '<div style="margin-top:6px">' + divMonthChips + '</div>' : '') +
         '<div class="card-metrics">' +
           metric('株価',     priceStr) +
           metric('配当利回', item.divYield ? item.divYield + '%' : '-') +
           metric('理想利回', item.ideal   ? item.ideal   + '%' : '-') +
           metric('ギャップ', gap !== '-'  ? gap + '%'          : '-') +
         '</div>' +
-        (item.owned && item.owned !== '0' ? (() => {
-          const owned = parseFloat(item.owned);
-          const price = parseFloat(item.price.replace(/,/g,''));
-          const divY  = parseFloat(item.divYield);
-          const holdVal = (!isNaN(owned) && !isNaN(price)) ? Math.round(owned * price) : null;
-          const annDiv  = (holdVal && !isNaN(divY)) ? Math.round(holdVal * divY / 100) : null;
-          return '<div class="owned-row">' +
-            '📦 ' + owned + '株保有' +
-            (holdVal ? ' ／ 評価額 ¥' + holdVal.toLocaleString() : '') +
-            (annDiv  ? ' ／ 配当見込 ¥' + annDiv.toLocaleString() : '') +
-            '</div>';
-        })() : '') +
+        ownedRow +
+        gainRow +
         '<div class="gap-bar">' +
-          '<div class="gap-track"><div class="gap-fill" style="width:' + pct + '%"></div></div>' +
-          '<div class="gap-label">理想利回に対して ' + pct + '%</div>' +
+          '<div class="gap-track"><div class="gap-fill" style="width:' + gapPct + '%"></div></div>' +
+          '<div class="gap-label">理想利回に対して ' + gapPct + '%</div>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -622,29 +748,68 @@
 
   const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
+  // [Round4] 年間目標配当額（localStorage）
+  function getGoal() { return parseInt(localStorage.getItem('divGoal') || '0', 10) || 0; }
+  function setGoal(v) { localStorage.setItem('divGoal', String(v)); }
+
+  function renderGoalBanner(totalDiv) {
+    var banner = document.getElementById('goalBanner');
+    var goal   = getGoal();
+    if (!goal && !totalDiv) { banner.style.display = 'none'; return; }
+    banner.style.display = '';
+    var pct  = goal > 0 ? Math.min(100, Math.round(totalDiv / goal * 100)) : 0;
+    var diff = goal > 0 ? goal - totalDiv : 0;
+    banner.innerHTML =
+      '<div class="goal-top">' +
+        '<span class="goal-label">🎯 年間目標配当: ¥' + (goal > 0 ? goal.toLocaleString() : '未設定') + '</span>' +
+        '<button class="btn-goal-edit" onclick="editGoal()">変更</button>' +
+      '</div>' +
+      (goal > 0
+        ? '<div class="goal-track"><div class="goal-fill" style="width:' + pct + '%"></div></div>' +
+          '<div class="goal-sub">' +
+            '<span>達成率 ' + pct + '%</span>' +
+            '<span>あと ¥' + diff.toLocaleString() + '</span>' +
+          '</div>'
+        : '<div style="font-size:0.8rem;color:var(--sub);margin-top:6px">目標を設定すると進捗が表示されます <button class="btn-goal-edit" onclick="editGoal()" style="margin-left:6px">設定する</button></div>');
+  }
+
+  function editGoal() {
+    var cur   = getGoal();
+    var input = prompt('年間目標配当額（円）を入力してください\n例: 500000', cur > 0 ? String(cur) : '');
+    if (input === null) return;
+    var val = parseInt(input.replace(/[,，　 ]/g, ''), 10);
+    if (isNaN(val) || val < 0) { alert('正しい金額を入力してください。'); return; }
+    setGoal(val);
+    var pf = document.getElementById('yearSummary')._pfData;
+    renderGoalBanner(pf ? pf.totalDividend : 0);
+  }
+
   function renderCalendar(calendar, pf) {
     if (!calendar) return;
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const totalDiv = pf && pf.totalDividend ? pf.totalDividend : 0;
+    var totalDiv = pf && pf.totalDividend ? pf.totalDividend : 0;
+
+    // [Round4] 目標バナー
+    document.getElementById('yearSummary')._pfData = pf;
+    renderGoalBanner(totalDiv);
 
     // 年間サマリー
-    const summaryEl = document.getElementById('yearSummary');
+    var summaryEl = document.getElementById('yearSummary');
     if (totalDiv > 0) {
-      const monthly = Math.round(totalDiv / 12);
+      var monthly = Math.round(totalDiv / 12);
       summaryEl.innerHTML =
         '<div class="ys-label">年間配当見込み</div>' +
         '<div class="ys-value">¥<span>' + totalDiv.toLocaleString() + '</span></div>' +
         '<div class="ys-sub">月平均 ¥' + monthly.toLocaleString() + ' ／ 週平均 ¥' +
           Math.round(totalDiv / 52).toLocaleString() + '</div>';
+      summaryEl._pfData = pf;
     }
 
     // カレンダーグリッド
     document.getElementById('calendarGrid').innerHTML = calendar.map(function(m) {
-      const isCurrent  = m.month === currentMonth;
-      const hasDiv     = m.amount > 0;
-      const cls = 'cal-month' + (hasDiv ? ' has-dividend' : '') + (isCurrent ? ' is-current' : '');
-      const stockStr   = m.stocks.length > 0
+      var isCurrent = m.month === currentMonth;
+      var hasDiv    = m.amount > 0;
+      var cls = 'cal-month' + (hasDiv ? ' has-dividend' : '') + (isCurrent ? ' is-current' : '');
+      var stockStr  = m.stocks.length > 0
         ? m.stocks.slice(0, 3).join('<br>') + (m.stocks.length > 3 ? '<br>他' + (m.stocks.length - 3) + '件' : '')
         : '';
       return '<div class="' + cls + '">' +
@@ -660,18 +825,77 @@
   }
 
   function renderPortfolio(pf) {
-    const el = document.getElementById('portfolioBanner');
+    var el = document.getElementById('portfolioBanner');
     if (!pf || pf.totalValue === 0) { el.style.display = 'none'; return; }
     el.style.display = 'flex';
+    var yieldPct = pf.totalValue > 0 ? (pf.totalDividend / pf.totalValue * 100).toFixed(2) : '-';
+    var monthDiv = pf.totalDividend > 0 ? Math.round(pf.totalDividend / 12) : 0;
     el.innerHTML =
       '<div class="pf-item"><div class="pf-label">保有総額</div>' +
       '<div class="pf-value">¥' + pf.totalValue.toLocaleString() + '</div></div>' +
       '<div class="pf-item"><div class="pf-label">年間配当見込み</div>' +
       '<div class="pf-value dividend">¥' + pf.totalDividend.toLocaleString() + '</div></div>' +
-      '<div class="pf-item"><div class="pf-label">配当利回(実績)</div>' +
-      '<div class="pf-value dividend">' +
-        (pf.totalValue > 0 ? (pf.totalDividend / pf.totalValue * 100).toFixed(2) : '-') +
-      '%</div></div>';
+      '<div class="pf-item"><div class="pf-label">月平均配当</div>' +
+      '<div class="pf-value dividend">¥' + monthDiv.toLocaleString() + '</div></div>' +
+      '<div class="pf-item"><div class="pf-label">配当利回</div>' +
+      '<div class="pf-value dividend">' + yieldPct + '%</div></div>';
+  }
+
+  // [Round5] 銘柄詳細モーダル
+  function showDetail(code) {
+    var item = allItems.filter(function(i){ return i.code === code; })[0];
+    if (!item) return;
+    var priceNum = parseFloat(item.price.replace(/,/g,''));
+    var prevNum  = parseFloat(item.prevClose);
+    var ownedNum = parseFloat(item.owned);
+    var costNum  = parseFloat((item.cost || '').replace(/,/g,''));
+    var divY     = parseFloat(item.divYield);
+
+    var changeStr = '';
+    if (!isNaN(priceNum) && !isNaN(prevNum) && prevNum > 0) {
+      var diff = priceNum - prevNum;
+      var sign = diff >= 0 ? '+' : '';
+      changeStr = sign + diff.toFixed(0) + '円 (' + sign + (diff/prevNum*100).toFixed(2) + '%)';
+    }
+    var gainStr = '';
+    if (ownedNum > 0 && !isNaN(costNum) && costNum > 0 && priceNum) {
+      var gain    = (priceNum - costNum) * ownedNum;
+      var gainSign = gain >= 0 ? '+' : '';
+      gainStr = gainSign + Math.round(gain).toLocaleString() + '円 (' + gainSign + ((priceNum-costNum)/costNum*100).toFixed(1) + '%)';
+    }
+    var holdVal = (ownedNum > 0 && priceNum) ? Math.round(ownedNum * priceNum) : 0;
+    var annDiv  = (holdVal && !isNaN(divY))  ? Math.round(holdVal * divY / 100) : 0;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.onclick = function(e) { if (e.target === overlay) document.body.removeChild(overlay); };
+    overlay.innerHTML =
+      '<div class="modal-sheet">' +
+        '<div class="modal-handle"></div>' +
+        '<div class="modal-title">' + esc(item.name) + ' <span style="font-size:0.8rem;color:var(--sub)">' + esc(item.code) + '</span></div>' +
+        '<div class="modal-grid">' +
+          modalItem('株価', item.price ? '¥' + Number(item.price.replace(/,/g,'')).toLocaleString() : '-') +
+          modalItem('前日比', changeStr || '-') +
+          modalItem('配当利回', item.divYield ? item.divYield + '%' : '-') +
+          modalItem('理想利回', item.ideal   ? item.ideal   + '%' : '-') +
+          modalItem('配当月', item.divMonths || '-') +
+          modalItem('取得元', item.source || '-') +
+          (ownedNum > 0
+            ? modalItem('保有数量', ownedNum + '株') +
+              modalItem('評価額',   holdVal ? '¥' + holdVal.toLocaleString() : '-') +
+              modalItem('取得単価', costNum ? '¥' + costNum.toLocaleString() : '-') +
+              modalItem('含み損益', gainStr || '-') +
+              modalItem('配当見込', annDiv  ? '¥' + annDiv.toLocaleString() + '/年' : '-') +
+              modalItem('判定', item.judge || '-')
+            : '') +
+        '</div>' +
+        '<button style="margin-top:16px;width:100%;padding:12px;border-radius:12px;border:1px solid var(--border);background:none;font-size:0.9rem;cursor:pointer" onclick="this.closest(\'.modal-overlay\').remove()">閉じる</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+  }
+
+  function modalItem(label, value) {
+    return '<div class="modal-item"><div class="mi-label">' + label + '</div><div class="mi-value">' + esc(String(value)) + '</div></div>';
   }
 
   function metric(label, value) {
@@ -708,7 +932,12 @@
       .getDividendRecords();
   }
 
+  // 受取記録の現在のビューモード（'list' or 'group'）
+  var recordViewMode = 'list';
+  var lastRecordRes  = null;
+
   function renderRecordView(res) {
+    lastRecordRes = res;
     var stats   = res.stats;
     var records = res.records;
     var html = '';
@@ -723,15 +952,20 @@
     }
     html += '</div>';
 
-    // 月別棒グラフ
+    // [Round2] 月別棒グラフ（金額ラベル付き）
     var maxMonthly = 0;
     stats.monthly.forEach(function(m) { if (m.amount > maxMonthly) maxMonthly = m.amount; });
     html += '<div class="record-section"><h3>月別受取金額（直近12ヶ月）</h3>';
-    html += '<div class="bar-chart">';
+    html += '<div class="bar-chart" style="height:96px;align-items:flex-end">';
     stats.monthly.forEach(function(m) {
-      var h = maxMonthly > 0 ? Math.max(2, Math.round(m.amount / maxMonthly * 74)) : 2;
+      var h    = maxMonthly > 0 ? Math.max(2, Math.round(m.amount / maxMonthly * 64)) : 2;
+      var amtLabel = m.amount > 0
+        ? '<div style="font-size:0.5rem;color:var(--success);white-space:nowrap;font-weight:700">' +
+          (m.amount >= 10000 ? Math.round(m.amount/1000) + 'k' : m.amount.toLocaleString()) + '</div>'
+        : '<div style="height:10px"></div>';
       html += '<div class="bar-col">';
-      html += '<div class="bar" style="height:' + h + 'px" title="¥' + m.amount.toLocaleString() + '"></div>';
+      html += amtLabel;
+      html += '<div class="bar" style="height:' + h + 'px"></div>';
       html += '<div class="bar-label">' + m.label + '</div>';
       html += '</div>';
     });
@@ -757,7 +991,8 @@
     var now = new Date();
     var mm  = ('0' + (now.getMonth() + 1)).slice(-2);
     var dd  = ('0' + now.getDate()).slice(-2);
-    var defaultDate = now.getFullYear() + '/' + mm + '/' + dd;
+    // [Round1] type="date" を使うためにyyyy-MM-dd形式で渡す
+    var defaultDateInput = now.getFullYear() + '-' + mm + '-' + dd;
 
     var stockOptions = '<option value="">銘柄を選択（任意）</option>';
     if (allItems && allItems.length > 0) {
@@ -773,10 +1008,11 @@
     html += '<div class="record-form">';
     html += '<h3>📝 配当受取を記録</h3>';
     html += '<div class="form-row">';
+    // [Round1] type="date" でカレンダーピッカーを使用
     html += '<div class="form-field"><label>受取日</label>' +
-      '<input type="text" id="rDate" value="' + defaultDate + '" placeholder="2025/06/01"></div>';
+      '<input type="date" id="rDate" value="' + defaultDateInput + '"></div>';
     html += '<div class="form-field"><label>受取金額（円）</label>' +
-      '<input type="number" id="rAmount" placeholder="5000" min="1"></div>';
+      '<input type="number" id="rAmount" placeholder="5000" min="1" inputmode="numeric"></div>';
     html += '</div>';
     html += '<div class="form-row">';
     html += '<div class="form-field full"><label>銘柄を選択</label>' +
@@ -784,7 +1020,7 @@
     html += '</div>';
     html += '<div class="form-row">';
     html += '<div class="form-field"><label>銘柄コード</label>' +
-      '<input type="text" id="rCode" placeholder="1234"></div>';
+      '<input type="text" id="rCode" placeholder="1234" inputmode="numeric"></div>';
     html += '<div class="form-field"><label>銘柄名</label>' +
       '<input type="text" id="rName" placeholder="例: 〇〇銀行"></div>';
     html += '</div>';
@@ -795,26 +1031,88 @@
     html += '<button class="btn-save" id="rSaveBtn" onclick="submitRecord()">💾 保存する</button>';
     html += '</div></div>';
 
-    // 受取履歴一覧
-    html += '<div class="record-section"><h3>受取履歴</h3></div>';
-    html += '<div class="record-list" id="recordList">';
-    if (records.length === 0) {
-      html += '<div class="placeholder" style="padding:30px 20px">まだ記録がありません</div>';
-    } else {
-      records.forEach(function(r) {
-        html += '<div class="record-item">';
-        html += '<div class="ri-left">';
-        html += '<div class="ri-name">' + esc(r.name || r.code || '不明') + '</div>';
-        html += '<div class="ri-date">' + esc(r.date) + (r.memo ? ' ／ ' + esc(r.memo) : '') + '</div>';
-        html += '</div>';
-        html += '<div class="ri-amount">¥' + r.amount.toLocaleString() + '</div>';
-        html += '</div>';
-      });
-    }
+    // [Round4] 履歴／銘柄別 切替 + [Round5] エクスポート
+    html += '<div class="view-toggle">';
+    html += '<button class="vtog-btn' + (recordViewMode === 'list'  ? ' active' : '') + '" onclick="setRecordView(\'list\')">📋 履歴</button>';
+    html += '<button class="vtog-btn' + (recordViewMode === 'group' ? ' active' : '') + '" onclick="setRecordView(\'group\')">📊 銘柄別</button>';
     html += '</div>';
+
+    if (records.length > 0) {
+      html += '<div style="padding:4px 12px 0">';
+      html += '<button class="btn-export" onclick="exportRecords()">📤 テキストでコピー（シェア用）</button>';
+      html += '</div>';
+    }
+
+    // 一覧エリア（id=recordListArea に後から差し替え可能）
+    html += '<div id="recordListArea"></div>';
     html += '<div style="height:40px"></div>';
 
     document.getElementById('viewRecord').innerHTML = html;
+    renderRecordListArea(records);
+  }
+
+  function renderRecordListArea(records) {
+    var el = document.getElementById('recordListArea');
+    if (!el) return;
+    var html = '';
+
+    if (recordViewMode === 'group') {
+      // [Round4] 銘柄別集計
+      var groupMap = {};
+      records.forEach(function(r) {
+        var key = r.code || r.name || '不明';
+        if (!groupMap[key]) groupMap[key] = { name: r.name || r.code || '不明', amount: 0, count: 0 };
+        groupMap[key].amount += r.amount;
+        groupMap[key].count++;
+      });
+      var groups = Object.keys(groupMap).map(function(k){ return groupMap[k]; })
+        .sort(function(a,b){ return b.amount - a.amount; });
+
+      html += '<div class="record-section"><h3>銘柄別受取合計</h3></div>';
+      html += '<div class="record-list">';
+      groups.forEach(function(g) {
+        html += '<div class="record-item">';
+        html += '<div class="ri-left">';
+        html += '<div class="ri-name">' + esc(g.name) + '</div>';
+        html += '<div class="ri-date">' + g.count + '回受取</div>';
+        html += '</div>';
+        html += '<div class="ri-amount">¥' + Math.round(g.amount).toLocaleString() + '</div>';
+        html += '</div>';
+      });
+      if (groups.length === 0) html += '<div class="placeholder" style="padding:30px 20px">まだ記録がありません</div>';
+      html += '</div>';
+    } else {
+      // 履歴一覧（[Round2] 削除ボタン付き）
+      html += '<div class="record-section"><h3>受取履歴</h3></div>';
+      html += '<div class="record-list">';
+      if (records.length === 0) {
+        html += '<div class="placeholder" style="padding:30px 20px">まだ記録がありません</div>';
+      } else {
+        records.forEach(function(r) {
+          html += '<div class="record-item">';
+          html += '<div class="ri-left">';
+          html += '<div class="ri-name">' + esc(r.name || r.code || '不明') + '</div>';
+          html += '<div class="ri-date">' + esc(r.date) + (r.memo ? ' ／ ' + esc(r.memo) : '') + '</div>';
+          html += '</div>';
+          html += '<div style="display:flex;align-items:center;gap:6px">';
+          html += '<div class="ri-amount">¥' + r.amount.toLocaleString() + '</div>';
+          html += '<button class="btn-delete" onclick="deleteRecord(' + r.rowNum + ')" title="削除">✕</button>';
+          html += '</div>';
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  function setRecordView(mode) {
+    recordViewMode = mode;
+    // ボタンのactive切替
+    var btns = document.querySelectorAll('.vtog-btn');
+    if (btns[0]) btns[0].classList.toggle('active', mode === 'list');
+    if (btns[1]) btns[1].classList.toggle('active', mode === 'group');
+    if (lastRecordRes) renderRecordListArea(lastRecordRes.records);
   }
 
   function onStockSelect(val) {
@@ -827,16 +1125,18 @@
   }
 
   function submitRecord() {
-    var date   = document.getElementById('rDate')   ? document.getElementById('rDate').value   : '';
-    var amount = document.getElementById('rAmount') ? document.getElementById('rAmount').value : '';
-    var code   = document.getElementById('rCode')   ? document.getElementById('rCode').value   : '';
-    var name   = document.getElementById('rName')   ? document.getElementById('rName').value   : '';
-    var memo   = document.getElementById('rMemo')   ? document.getElementById('rMemo').value   : '';
+    var dateRaw = document.getElementById('rDate')   ? document.getElementById('rDate').value   : '';
+    var amount  = document.getElementById('rAmount') ? document.getElementById('rAmount').value : '';
+    var code    = document.getElementById('rCode')   ? document.getElementById('rCode').value   : '';
+    var name    = document.getElementById('rName')   ? document.getElementById('rName').value   : '';
+    var memo    = document.getElementById('rMemo')   ? document.getElementById('rMemo').value   : '';
 
-    if (!date.trim() || !amount || parseFloat(amount) <= 0) {
+    if (!dateRaw.trim() || !amount || parseFloat(amount) <= 0) {
       alert('受取日と受取金額は必須です。');
       return;
     }
+    // [Round1] yyyy-MM-dd → yyyy/MM/dd に変換して保存
+    var date = dateRaw.replace(/-/g, '/');
 
     var btn = document.getElementById('rSaveBtn');
     if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
@@ -855,7 +1155,43 @@
         alert('保存エラー: ' + err.message);
         if (btn) { btn.disabled = false; btn.textContent = '💾 保存する'; }
       })
-      .saveDividendRecord(date.trim(), code.trim(), name.trim(), parseFloat(amount), memo.trim());
+      .saveDividendRecord(date, code.trim(), name.trim(), parseFloat(amount), memo.trim());
+  }
+
+  // [Round2] 削除
+  function deleteRecord(rowNum) {
+    if (!confirm('この受取記録を削除してよろしいですか？')) return;
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (!res || !res.ok) { alert('削除エラー: ' + (res && res.message || '不明')); return; }
+        recordLoaded = false;
+        loadRecords();
+      })
+      .withFailureHandler(function(err) { alert('削除エラー: ' + err.message); })
+      .deleteDividendRecord(rowNum);
+  }
+
+  // [Round5] テキストエクスポート
+  function exportRecords() {
+    if (!lastRecordRes || !lastRecordRes.records.length) return;
+    var lines = ['配当受取記録\n' + new Date().toLocaleDateString('ja-JP')];
+    lines.push('累計: ¥' + lastRecordRes.stats.total.toLocaleString() + '（' + lastRecordRes.stats.count + '回）');
+    lines.push('');
+    lastRecordRes.records.slice(0, 30).forEach(function(r) {
+      lines.push(r.date + ' ' + (r.name || r.code) + ' ¥' + r.amount.toLocaleString() + (r.memo ? ' (' + r.memo + ')' : ''));
+    });
+    var text = lines.join('\n');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() { alert('クリップボードにコピーしました！'); });
+    } else {
+      // フォールバック: textareaで選択
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { document.execCommand('copy'); alert('クリップボードにコピーしました！'); }
+      catch(e) { alert(text); }
+      document.body.removeChild(ta);
+    }
   }
 
   // プルトゥリフレッシュ

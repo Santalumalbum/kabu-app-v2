@@ -58,8 +58,8 @@ function getDividendRecords() {
 
     const rows = sh.getRange(2, 1, last - 1, 5).getValues();
     const records = rows
-      .filter(r => r[0] && r[3])
-      .map(r => ({
+      .map((r, i) => ({
+        rowNum: i + 2,  // シート上の実行番号（ヘッダー=1行目を除く）
         date:   r[0] instanceof Date
           ? Utilities.formatDate(r[0], 'Asia/Tokyo', 'yyyy/MM/dd')
           : String(r[0]),
@@ -68,6 +68,7 @@ function getDividendRecords() {
         amount: Number(r[3]) || 0,
         memo:   String(r[4] || ''),
       }))
+      .filter(r => r.date && r.amount)
       .sort((a, b) => b.date.localeCompare(a.date)); // 新しい順
 
     const stats = buildStats_(records);
@@ -129,6 +130,31 @@ function buildStats_(records) {
     monthly:       monthly,
     topStocks:     topStocks,
   };
+}
+
+/**
+ * 配当受取記録を1件削除（シート行番号で指定）
+ */
+function deleteDividendRecord(rowNum) {
+  try {
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(8000)) return { ok: false, message: '処理中です。少し待ってください。' };
+    try {
+      const sh = getDividendRecordSheet_();
+      const lastRow = sh.getLastRow();
+      if (!rowNum || rowNum < 2 || rowNum > lastRow) {
+        return { ok: false, message: '無効な行番号です。' };
+      }
+      sh.deleteRow(rowNum);
+      SpreadsheetApp.flush();
+    } finally {
+      lock.releaseLock();
+    }
+    return { ok: true };
+  } catch (err) {
+    Logger.log(err.stack || err);
+    return { ok: false, message: err.message };
+  }
 }
 
 function buildEmptyStats_() {
