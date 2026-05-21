@@ -21,6 +21,13 @@ function getStockUserIds_() {
   return keys.map(k => props.getProperty(k)).filter(Boolean);
 }
 
+// 保有管理列・前日比列
+const PORTFOLIO_COLS = {
+  COL_OWNED:     10,  // J: 保有数量
+  COL_COST:      11,  // K: 取得単価
+  COL_PREV_CLOSE: 12, // L: 前日終値
+};
+
 function getSpreadsheet_() {
   return SpreadsheetApp.openById(getSpreadsheetId_());
 }

@@ -67,6 +67,39 @@
     .btn-update.spinning .icon { animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ツールバー（検索・フィルター）*/
+    .toolbar {
+      padding: 8px 12px; display: flex; gap: 8px; align-items: center;
+      flex-wrap: wrap;
+    }
+    .search-box {
+      flex: 1; min-width: 140px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 7px 12px;
+      font-size: 0.9rem; color: var(--text); outline: none;
+    }
+    .search-box::placeholder { color: var(--sub); }
+    .filters { display: flex; gap: 6px; }
+    .filter-btn {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 6px 14px;
+      font-size: 0.82rem; font-weight: 600; cursor: pointer;
+      color: var(--sub); transition: all 0.15s;
+    }
+    .filter-btn.active {
+      background: var(--primary); border-color: var(--primary);
+      color: #fff;
+    }
+    .filter-btn.active-buy {
+      background: var(--success); border-color: var(--success);
+      color: #fff;
+    }
+    .sort-select {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 6px 10px;
+      font-size: 0.82rem; color: var(--text); outline: none;
+    }
+
     /* 統計バー */
     .stats {
       display: flex; gap: 8px;
@@ -83,6 +116,39 @@
     .stat-value { font-size: 1.05rem; font-weight: 700; margin-top: 2px; }
     .stat-value.buy   { color: var(--success); }
     .stat-value.warn  { color: var(--warning); }
+
+    /* ポートフォリオバナー */
+    .portfolio-banner {
+      margin: 0 12px 4px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border-radius: 14px; padding: 14px 18px;
+      display: flex; justify-content: space-around;
+      color: #fff;
+    }
+    .pf-item { text-align: center; }
+    .pf-label { font-size: 0.68rem; opacity: 0.7; }
+    .pf-value { font-size: 1.05rem; font-weight: 700; margin-top: 3px; }
+    .pf-value.dividend { color: #4facfe; }
+
+    /* 前日比チップ */
+    .change-chip {
+      display: inline-block; font-size: 0.75rem; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px; margin-top: 4px;
+    }
+    .change-up   { background: #d4f5de; color: #1a7a35; }
+    .change-down { background: #fde8e8; color: #c0392b; }
+    .change-flat { background: #e8e8ee; color: var(--sub); }
+    @media (prefers-color-scheme: dark) {
+      .change-up   { background: #1a4d28; color: #4cd964; }
+      .change-down { background: #4d1a1a; color: #ff6b6b; }
+      .change-flat { background: #3a3a3c; }
+    }
+
+    /* 保有バッジ */
+    .owned-row {
+      margin-top: 8px; font-size: 0.75rem; color: var(--sub);
+      display: flex; gap: 8px;
+    }
 
     /* カードグリッド */
     .cards {
@@ -164,6 +230,21 @@
   </button>
 </header>
 
+<div class="portfolio-banner" id="portfolioBanner" style="display:none"></div>
+<div class="toolbar">
+  <input class="search-box" id="searchBox" type="search" placeholder="🔍 銘柄名・コードで検索">
+  <div class="filters">
+    <button class="filter-btn active" id="filterAll">全て</button>
+    <button class="filter-btn" id="filterBuy">買い</button>
+    <button class="filter-btn" id="filterHold">様子見</button>
+  </div>
+  <select id="sortSelect" class="sort-select">
+    <option value="gap">ギャップ順</option>
+    <option value="yield">利回り順</option>
+    <option value="change">前日比順</option>
+    <option value="code">コード順</option>
+  </select>
+</div>
 <div class="stats" id="stats"></div>
 <div class="cards" id="cards">
   <div class="placeholder">読み込み中...</div>
@@ -171,6 +252,42 @@
 
 <script>
   let isLoading = false;
+  let allItems = [];
+  let activeFilter = 'all';
+
+  function getFiltered() {
+    const q = document.getElementById('searchBox').value.trim().toLowerCase();
+    return allItems.filter(item => {
+      const matchFilter =
+        activeFilter === 'all' ||
+        (activeFilter === 'buy'  && item.judge.indexOf('買') !== -1) ||
+        (activeFilter === 'hold' && item.judge.indexOf('買') === -1);
+      const matchSearch = !q ||
+        item.name.toLowerCase().indexOf(q) !== -1 ||
+        item.code.toLowerCase().indexOf(q) !== -1;
+      return matchFilter && matchSearch;
+    });
+  }
+
+  function setFilter(f) {
+    activeFilter = f;
+    document.getElementById('filterAll') .classList.toggle('active',     f === 'all');
+    document.getElementById('filterBuy') .classList.toggle('active-buy', f === 'buy');
+    document.getElementById('filterHold').classList.toggle('active',     f === 'hold');
+    renderCards(getFiltered());
+  }
+
+  document.getElementById('filterAll') .addEventListener('click', function() { setFilter('all');  });
+  document.getElementById('filterBuy') .addEventListener('click', function() { setFilter('buy');  });
+  document.getElementById('filterHold').addEventListener('click', function() { setFilter('hold'); });
+  document.getElementById('searchBox') .addEventListener('input',  function() { renderCards(getFiltered()); });
+
+  // ソート
+  let sortKey = 'gap';
+  document.getElementById('sortSelect').addEventListener('change', function() {
+    sortKey = this.value;
+    renderCards(getFiltered());
+  });
 
   function setLoading(on) {
     isLoading = on;
@@ -207,9 +324,10 @@
     document.getElementById('updatedAt').textContent =
       res.updatedAt || '更新日時不明';
 
-    const items = res.items || [];
-    renderStats(items);
-    renderCards(items);
+    allItems = res.items || [];
+    renderStats(allItems);
+    renderCards(getFiltered());
+    renderPortfolio(res.portfolio);
   }
 
   function renderStats(items) {
@@ -245,8 +363,19 @@
       return;
     }
 
-    // ギャップが大きい順にソート
     const sorted = items.slice().sort((a, b) => {
+      if (sortKey === 'yield') {
+        return (parseFloat(b.divYield) || 0) - (parseFloat(a.divYield) || 0);
+      }
+      if (sortKey === 'change') {
+        const ca = (parseFloat(a.price) - parseFloat(a.prevClose)) / (parseFloat(a.prevClose) || 1);
+        const cb = (parseFloat(b.price) - parseFloat(b.prevClose)) / (parseFloat(b.prevClose) || 1);
+        return (isNaN(cb) ? -99 : cb) - (isNaN(ca) ? -99 : ca);
+      }
+      if (sortKey === 'code') {
+        return String(a.code).localeCompare(String(b.code));
+      }
+      // default: gap
       const ga = parseFloat(a.divYield) - parseFloat(a.ideal);
       const gb = parseFloat(b.divYield) - parseFloat(b.ideal);
       return (isNaN(gb) ? -99 : gb) - (isNaN(ga) ? -99 : ga);
@@ -264,13 +393,25 @@
       const pct   = (!isNaN(divY) && !isNaN(ideal) && ideal > 0)
         ? Math.min(100, Math.round(divY / ideal * 100)) : 0;
 
-      const priceStr = item.price ? '¥' + Number(item.price).toLocaleString() : '-';
+      const priceNum = parseFloat(item.price.replace(/,/g,''));
+      const prevNum  = parseFloat(item.prevClose);
+      let changeChip = '';
+      if (!isNaN(priceNum) && !isNaN(prevNum) && prevNum > 0) {
+        const diff = priceNum - prevNum;
+        const pct  = (diff / prevNum * 100).toFixed(2);
+        const cls  = diff > 0 ? 'change-up' : diff < 0 ? 'change-down' : 'change-flat';
+        const sign = diff > 0 ? '▲' : diff < 0 ? '▼' : '';
+        changeChip = '<span class="change-chip ' + cls + '">' +
+          sign + Math.abs(diff).toFixed(0) + '円 (' + (diff >= 0 ? '+' : '') + pct + '%)</span>';
+      }
+      const priceStr = item.price ? '¥' + Number(item.price.replace(/,/g,'')).toLocaleString() : '-';
 
       return '<div class="card">' +
         '<div class="card-top">' +
           '<div>' +
             '<div class="card-name">' + esc(item.name) + '</div>' +
             '<div class="card-code">' + esc(item.code) + '</div>' +
+            changeChip +
           '</div>' +
           '<span class="badge ' + badgeCls + '">' + badgeTxt + '</span>' +
         '</div>' +
@@ -280,12 +421,39 @@
           metric('理想利回', item.ideal   ? item.ideal   + '%' : '-') +
           metric('ギャップ', gap !== '-'  ? gap + '%'          : '-') +
         '</div>' +
+        (item.owned && item.owned !== '0' ? (() => {
+          const owned = parseFloat(item.owned);
+          const price = parseFloat(item.price.replace(/,/g,''));
+          const divY  = parseFloat(item.divYield);
+          const holdVal = (!isNaN(owned) && !isNaN(price)) ? Math.round(owned * price) : null;
+          const annDiv  = (holdVal && !isNaN(divY)) ? Math.round(holdVal * divY / 100) : null;
+          return '<div class="owned-row">' +
+            '📦 ' + owned + '株保有' +
+            (holdVal ? ' ／ 評価額 ¥' + holdVal.toLocaleString() : '') +
+            (annDiv  ? ' ／ 配当見込 ¥' + annDiv.toLocaleString() : '') +
+            '</div>';
+        })() : '') +
         '<div class="gap-bar">' +
           '<div class="gap-track"><div class="gap-fill" style="width:' + pct + '%"></div></div>' +
           '<div class="gap-label">理想利回に対して ' + pct + '%</div>' +
         '</div>' +
       '</div>';
     }).join('');
+  }
+
+  function renderPortfolio(pf) {
+    const el = document.getElementById('portfolioBanner');
+    if (!pf || pf.totalValue === 0) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    el.innerHTML =
+      '<div class="pf-item"><div class="pf-label">保有総額</div>' +
+      '<div class="pf-value">¥' + pf.totalValue.toLocaleString() + '</div></div>' +
+      '<div class="pf-item"><div class="pf-label">年間配当見込み</div>' +
+      '<div class="pf-value dividend">¥' + pf.totalDividend.toLocaleString() + '</div></div>' +
+      '<div class="pf-item"><div class="pf-label">配当利回(実績)</div>' +
+      '<div class="pf-value dividend">' +
+        (pf.totalValue > 0 ? (pf.totalDividend / pf.totalValue * 100).toFixed(2) : '-') +
+      '%</div></div>';
   }
 
   function metric(label, value) {
@@ -298,6 +466,18 @@
       .replace(/&/g,'&amp;').replace(/</g,'&lt;')
       .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+
+  // プルトゥリフレッシュ
+  let touchStartY = 0;
+  document.addEventListener('touchstart', function(e) {
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', function(e) {
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (dy > 80 && window.scrollY === 0 && !isLoading) {
+      load(false);
+    }
+  }, { passive: true });
 
   // 初回ロード
   load(false);

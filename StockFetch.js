@@ -19,10 +19,27 @@ const FETCH_CONF = {
 
 
 /**
+ * 現在が東証の取引時間内かどうか判定
+ * 09:00-11:30 / 12:30-15:30（土日除外）
+ */
+function isMarketHours_() {
+  const now = new Date();
+  const dow = now.getDay();
+  if (dow === 0 || dow === 6) return false;
+
+  const hhmm = now.getHours() * 100 + now.getMinutes();
+  return (hhmm >= 900 && hhmm <= 1130) || (hhmm >= 1230 && hhmm <= 1530);
+}
+
+/**
  * チェック済み銘柄の株価・利回りを一括更新
- * トリガーまたは手動で呼び出す
+ * トリガーから呼び出す（市場時間外はスキップ）
  */
 function updateAllStocks() {
+  if (!isMarketHours_()) {
+    Logger.log('市場時間外のためスキップ');
+    return;
+  }
   const ss = getSpreadsheet_();
   const sh = ss.getSheetByName(FETCH_CONF.SHEET_NAME);
   if (!sh) {
@@ -49,6 +66,7 @@ function updateAllStocks() {
     const result = fetchStockData_(code);
     const now = new Date();
 
+    // 取得成功した値だけ上書き（失敗時は前回値を保持）
     if (result.price !== null) {
       sh.getRange(FETCH_CONF.START_ROW + i, FETCH_CONF.COL_PRICE).setValue(result.price);
     }
@@ -56,10 +74,14 @@ function updateAllStocks() {
       sh.getRange(FETCH_CONF.START_ROW + i, FETCH_CONF.COL_YIELD).setValue(result.divYield);
     }
 
-    sh.getRange(FETCH_CONF.START_ROW + i, FETCH_CONF.COL_UPDATED)
-      .setValue(Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'));
-    sh.getRange(FETCH_CONF.START_ROW + i, FETCH_CONF.COL_SOURCE)
-      .setValue(result.source);
+    const timeStr = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+    const sourceStr = result.source + (result.price === null ? '(株価取得失敗)' : '')
+                                    + (result.divYield === null ? '(利回取得失敗)' : '');
+    sh.getRange(FETCH_CONF.START_ROW + i, FETCH_CONF.COL_UPDATED).setValue(timeStr);
+    sh.getRange(FETCH_CONF.START_ROW + i, FETCH_CONF.COL_SOURCE).setValue(sourceStr);
+    if (result.prevClose !== null) {
+      sh.getRange(FETCH_CONF.START_ROW + i, PORTFOLIO_COLS.COL_PREV_CLOSE).setValue(result.prevClose);
+    }
 
     count++;
 
@@ -89,6 +111,7 @@ function fetchStockData_(code) {
   // --- 株価取得（Yahoo Finance JSON → Google Finance）---
   const price = fetchPriceYahooJson_(padded) || fetchPriceGoogleFinance_(padded);
   result.price = price;
+  result.prevClose = fetchPrevClose_(padded);
 
   // --- 利回り取得（Yahoo Finance JP → minkabu）---
   const yieldData = fetchYieldYahoo_(padded) || fetchYieldMinkabu_(padded);
@@ -104,6 +127,24 @@ function fetchStockData_(code) {
 
 
 /***** 株価取得 *****/
+
+function fetchPrevClose_(code) {
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + code + '.T'
+              + '?interval=1d&range=5d';
+    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) return null;
+    const json = JSON.parse(res.getContentText());
+    const closes = json.chart && json.chart.result && json.chart.result[0]
+      ? json.chart.result[0].indicators.quote[0].close : null;
+    if (!closes || closes.length < 2) return null;
+    // 直近の有効な前日終値を返す
+    const valid = closes.filter(v => v !== null);
+    return valid.length >= 2 ? valid[valid.length - 2] : null;
+  } catch (e) {
+    return null;
+  }
+}
 
 function fetchPriceYahooJson_(code) {
   const cacheKey = 'p_yj_' + code;
@@ -232,6 +273,41 @@ function fetchYieldMinkabu_(code) {
 
 
 /***** ユーティリティ *****/
+
+/**
+ * 市場時間チェックなしで強制更新（手動ボタン用）
+ */
+function updateAllStocksForced_() {
+  const ss = getSpreadsheet_();
+  const sh = ss.getSheetByName(FETCH_CONF.SHEET_NAME);
+  if (!sh) return;
+
+  const lastRow = sh.getLastRow();
+  if (lastRow < FETCH_CONF.START_ROW) return;
+
+  const numRows = lastRow - FETCH_CONF.START_ROW + 1;
+  const values = sh.getRange(FETCH_CONF.START_ROW, 1, numRows, FETCH_CONF.COL_SOURCE).getValues();
+  let count = 0;
+
+  for (let i = 0; i < values.length; i++) {
+    const code    = String(values[i][FETCH_CONF.COL_CODE - 1] || '').trim();
+    const checked = values[i][FETCH_CONF.COL_CHECK - 1];
+    if (!code || !isChecked_(checked)) continue;
+
+    const result = fetchStockData_(code);
+    const now = new Date();
+    if (result.price    !== null) sh.getRange(FETCH_CONF.START_ROW + i, FETCH_CONF.COL_PRICE).setValue(result.price);
+    if (result.divYield !== null) sh.getRange(FETCH_CONF.START_ROW + i, FETCH_CONF.COL_YIELD).setValue(result.divYield);
+    sh.getRange(FETCH_CONF.START_ROW + i, FETCH_CONF.COL_UPDATED)
+      .setValue(Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'));
+    sh.getRange(FETCH_CONF.START_ROW + i, FETCH_CONF.COL_SOURCE).setValue(result.source);
+    count++;
+    if (count % FETCH_CONF.BATCH_SIZE === 0) { SpreadsheetApp.flush(); Utilities.sleep(FETCH_CONF.BATCH_SLEEP_MS); }
+  }
+
+  sh.getRange('H1').setValue(Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm 更新'));
+  SpreadsheetApp.flush();
+}
 
 function isChecked_(val) {
   if (val === true || val === 'TRUE') return true;

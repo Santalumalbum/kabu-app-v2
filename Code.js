@@ -20,7 +20,7 @@ function getDisplayData() {
 
     if (lastRow < 2) return { ok: true, items: [], updatedAt: updatedAt };
 
-    const rows = sh.getRange(2, 1, lastRow - 1, 9).getDisplayValues();
+    const rows = sh.getRange(2, 1, lastRow - 1, 12).getDisplayValues();
     const items = rows
       .filter(r => String(r[0]).trim() || String(r[1]).trim())
       .map(r => ({
@@ -31,9 +31,29 @@ function getDisplayData() {
         ideal:    String(r[4]).trim(),
         judge:    String(r[5]).trim(),
         source:   String(r[8]).trim(),
+        owned:     String(r[9]).trim(),
+        cost:      String(r[10]).trim(),
+        prevClose: String(r[11]).trim(), // 前日終値
       }));
 
-    return { ok: true, items: items, updatedAt: updatedAt };
+    // ポートフォリオ集計
+    let totalValue = 0, totalDividend = 0;
+    items.forEach(item => {
+      const owned = parseFloat(item.owned);
+      const price = parseFloat(item.price.replace(/,/g, ''));
+      const divY  = parseFloat(item.divYield);
+      if (owned > 0 && !isNaN(price)) totalValue    += owned * price;
+      if (owned > 0 && !isNaN(price) && !isNaN(divY))
+        totalDividend += owned * price * (divY / 100);
+    });
+
+    return {
+      ok: true, items: items, updatedAt: updatedAt,
+      portfolio: {
+        totalValue:    Math.round(totalValue),
+        totalDividend: Math.round(totalDividend),
+      },
+    };
 
   } catch (err) {
     Logger.log(err.stack || err);
@@ -42,11 +62,11 @@ function getDisplayData() {
 }
 
 /**
- * 手動更新ボタンから呼ばれる
+ * 手動更新ボタンから呼ばれる（市場時間外でも強制実行）
  */
 function runManualUpdate() {
   try {
-    updateAllStocks();
+    updateAllStocksForced_();
     return getDisplayData();
   } catch (err) {
     Logger.log(err.stack || err);
