@@ -260,6 +260,79 @@
     }
     .gap-label { font-size: 0.68rem; color: var(--sub); margin-top: 3px; }
 
+    /* 受取記録ビュー */
+    .record-hero {
+      margin: 12px 12px 0;
+      background: linear-gradient(135deg, #1a3a1a 0%, #0d2b0d 100%);
+      border-radius: 18px; padding: 20px 24px; color: #fff; text-align: center;
+    }
+    .record-hero .rh-label { font-size: 0.8rem; opacity: 0.7; letter-spacing: 0.05em; }
+    .record-hero .rh-total {
+      font-size: 2.6rem; font-weight: 900; margin: 6px 0 2px;
+      color: #4cd964; letter-spacing: -0.02em;
+    }
+    .record-hero .rh-total span { font-size: 1.2rem; }
+    .record-hero .rh-sub  { font-size: 0.8rem; opacity: 0.6; }
+    .record-hero .rh-year { margin-top: 12px; font-size: 0.85rem; opacity: 0.85; }
+
+    .record-section { padding: 12px 12px 0; }
+    .record-section h3 { font-size: 0.85rem; color: var(--sub); margin-bottom: 8px; font-weight: 600; }
+
+    /* 棒グラフ */
+    .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 80px; }
+    .bar-col    { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .bar-col .bar {
+      width: 100%; border-radius: 4px 4px 0 0;
+      background: linear-gradient(180deg, #4cd964, #34a84a);
+      min-height: 2px; transition: height 0.4s ease;
+    }
+    .bar-col .bar-label { font-size: 0.55rem; color: var(--sub); white-space: nowrap; }
+
+    /* 記録入力フォーム */
+    .record-form {
+      background: var(--card); border-radius: 16px;
+      border: 1px solid var(--border); padding: 16px;
+      margin: 0 12px;
+    }
+    .record-form h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .form-field label { font-size: 0.72rem; color: var(--sub); display: block; margin-bottom: 3px; }
+    .form-field input, .form-field select {
+      width: 100%; padding: 8px 10px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--bg);
+      color: var(--text); font-size: 0.9rem; outline: none;
+    }
+    .form-field.full { grid-column: 1 / -1; }
+    .btn-save {
+      width: 100%; margin-top: 10px;
+      background: var(--success); color: #fff; border: none;
+      border-radius: 12px; padding: 12px; font-size: 1rem;
+      font-weight: 700; cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn-save:disabled { opacity: 0.5; }
+
+    /* 記録一覧 */
+    .record-list { margin: 0 12px; }
+    .record-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 11px 14px; background: var(--card);
+      border-radius: 12px; margin-bottom: 6px;
+      border: 1px solid var(--border);
+    }
+    .record-item .ri-left .ri-name  { font-weight: 600; font-size: 0.9rem; }
+    .record-item .ri-left .ri-date  { font-size: 0.72rem; color: var(--sub); margin-top: 1px; }
+    .record-item .ri-amount { font-size: 1rem; font-weight: 700; color: var(--success); }
+
+    /* top銘柄 */
+    .top-stocks { display: flex; flex-direction: column; gap: 6px; }
+    .top-stock-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 12px; background: var(--card); border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    .ts-bar-wrap { flex: 1; margin: 0 12px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .ts-bar { height: 100%; background: var(--success); border-radius: 3px; }
+
     /* ローディング・エラー */
     .placeholder { text-align: center; padding: 60px 20px; color: var(--sub); font-size: 0.9rem; }
     .error-box {
@@ -286,7 +359,8 @@
 
 <div class="tabs">
   <button class="tab-btn active" id="tabDashboard">ダッシュボード</button>
-  <button class="tab-btn" id="tabCalendar">📅 配当カレンダー</button>
+  <button class="tab-btn" id="tabCalendar">📅 カレンダー</button>
+  <button class="tab-btn" id="tabRecord">💰 受取記録</button>
 </div>
 <div id="viewDashboard">
 <div class="portfolio-banner" id="portfolioBanner" style="display:none"></div>
@@ -310,6 +384,10 @@
 </div>
 </div><!-- /viewDashboard -->
 
+<div id="viewRecord" style="display:none">
+  <div class="placeholder" id="recordLoading">読み込み中...</div>
+</div>
+
 <div id="viewCalendar" style="display:none">
   <div class="year-summary" id="yearSummary">
     <div class="ys-label">年間配当見込み</div>
@@ -330,15 +408,29 @@
     activeTab = 'dashboard';
     document.getElementById('tabDashboard').classList.add('active');
     document.getElementById('tabCalendar').classList.remove('active');
+    document.getElementById('tabRecord').classList.remove('active');
     document.getElementById('viewDashboard').style.display = '';
     document.getElementById('viewCalendar').style.display = 'none';
+    document.getElementById('viewRecord').style.display = 'none';
   });
   document.getElementById('tabCalendar').addEventListener('click', function() {
     activeTab = 'calendar';
     document.getElementById('tabCalendar').classList.add('active');
     document.getElementById('tabDashboard').classList.remove('active');
+    document.getElementById('tabRecord').classList.remove('active');
     document.getElementById('viewDashboard').style.display = 'none';
     document.getElementById('viewCalendar').style.display = '';
+    document.getElementById('viewRecord').style.display = 'none';
+  });
+  document.getElementById('tabRecord').addEventListener('click', function() {
+    activeTab = 'record';
+    document.getElementById('tabRecord').classList.add('active');
+    document.getElementById('tabDashboard').classList.remove('active');
+    document.getElementById('tabCalendar').classList.remove('active');
+    document.getElementById('viewDashboard').style.display = 'none';
+    document.getElementById('viewCalendar').style.display = 'none';
+    document.getElementById('viewRecord').style.display = '';
+    if (!recordLoaded) loadRecords();
   });
 
   function getFiltered() {
@@ -591,6 +683,179 @@
     return String(s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;')
       .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ========== 受取記録タブ ==========
+  var recordLoaded = false;
+
+  function loadRecords() {
+    document.getElementById('viewRecord').innerHTML =
+      '<div class="placeholder">読み込み中...</div>';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (!res || !res.ok) {
+          document.getElementById('viewRecord').innerHTML =
+            '<div class="error-box">⚠️ ' + (res && res.message || '読み込みエラー') + '</div>';
+          return;
+        }
+        recordLoaded = true;
+        renderRecordView(res);
+      })
+      .withFailureHandler(function(err) {
+        document.getElementById('viewRecord').innerHTML =
+          '<div class="error-box">⚠️ ' + err.message + '</div>';
+      })
+      .getDividendRecords();
+  }
+
+  function renderRecordView(res) {
+    var stats   = res.stats;
+    var records = res.records;
+    var html = '';
+
+    // ヒーローバナー
+    html += '<div class="record-hero">';
+    html += '<div class="rh-label">これまでの受取配当金</div>';
+    html += '<div class="rh-total">¥<span>' + stats.total.toLocaleString() + '</span></div>';
+    html += '<div class="rh-sub">受取回数 ' + stats.count + '回</div>';
+    if (stats.thisYearTotal > 0) {
+      html += '<div class="rh-year">📅 今年: ¥' + stats.thisYearTotal.toLocaleString() + '</div>';
+    }
+    html += '</div>';
+
+    // 月別棒グラフ
+    var maxMonthly = 0;
+    stats.monthly.forEach(function(m) { if (m.amount > maxMonthly) maxMonthly = m.amount; });
+    html += '<div class="record-section"><h3>月別受取金額（直近12ヶ月）</h3>';
+    html += '<div class="bar-chart">';
+    stats.monthly.forEach(function(m) {
+      var h = maxMonthly > 0 ? Math.max(2, Math.round(m.amount / maxMonthly * 74)) : 2;
+      html += '<div class="bar-col">';
+      html += '<div class="bar" style="height:' + h + 'px" title="¥' + m.amount.toLocaleString() + '"></div>';
+      html += '<div class="bar-label">' + m.label + '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+
+    // TOP銘柄
+    if (stats.topStocks && stats.topStocks.length > 0) {
+      var maxTop = stats.topStocks[0].amount || 1;
+      html += '<div class="record-section"><h3>受取金額 TOP銘柄</h3>';
+      html += '<div class="top-stocks">';
+      stats.topStocks.forEach(function(ts) {
+        var pct = Math.round(ts.amount / maxTop * 100);
+        html += '<div class="top-stock-row">';
+        html += '<span style="font-size:0.85rem;font-weight:600;min-width:80px">' + esc(ts.name) + '</span>';
+        html += '<div class="ts-bar-wrap"><div class="ts-bar" style="width:' + pct + '%"></div></div>';
+        html += '<span style="font-size:0.85rem;font-weight:700;color:var(--success);white-space:nowrap">¥' + Math.round(ts.amount).toLocaleString() + '</span>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    }
+
+    // 入力フォーム
+    var now = new Date();
+    var mm  = ('0' + (now.getMonth() + 1)).slice(-2);
+    var dd  = ('0' + now.getDate()).slice(-2);
+    var defaultDate = now.getFullYear() + '/' + mm + '/' + dd;
+
+    var stockOptions = '<option value="">銘柄を選択（任意）</option>';
+    if (allItems && allItems.length > 0) {
+      allItems.forEach(function(item) {
+        if (item.code || item.name) {
+          stockOptions += '<option value="' + esc(item.code) + '|' + esc(item.name) + '">' +
+            esc(item.code) + ' ' + esc(item.name) + '</option>';
+        }
+      });
+    }
+
+    html += '<div style="padding:12px 12px 0">';
+    html += '<div class="record-form">';
+    html += '<h3>📝 配当受取を記録</h3>';
+    html += '<div class="form-row">';
+    html += '<div class="form-field"><label>受取日</label>' +
+      '<input type="text" id="rDate" value="' + defaultDate + '" placeholder="2025/06/01"></div>';
+    html += '<div class="form-field"><label>受取金額（円）</label>' +
+      '<input type="number" id="rAmount" placeholder="5000" min="1"></div>';
+    html += '</div>';
+    html += '<div class="form-row">';
+    html += '<div class="form-field full"><label>銘柄を選択</label>' +
+      '<select id="rStock" onchange="onStockSelect(this.value)">' + stockOptions + '</select></div>';
+    html += '</div>';
+    html += '<div class="form-row">';
+    html += '<div class="form-field"><label>銘柄コード</label>' +
+      '<input type="text" id="rCode" placeholder="1234"></div>';
+    html += '<div class="form-field"><label>銘柄名</label>' +
+      '<input type="text" id="rName" placeholder="例: 〇〇銀行"></div>';
+    html += '</div>';
+    html += '<div class="form-row">';
+    html += '<div class="form-field full"><label>メモ（任意）</label>' +
+      '<input type="text" id="rMemo" placeholder="中間配当 など"></div>';
+    html += '</div>';
+    html += '<button class="btn-save" id="rSaveBtn" onclick="submitRecord()">💾 保存する</button>';
+    html += '</div></div>';
+
+    // 受取履歴一覧
+    html += '<div class="record-section"><h3>受取履歴</h3></div>';
+    html += '<div class="record-list" id="recordList">';
+    if (records.length === 0) {
+      html += '<div class="placeholder" style="padding:30px 20px">まだ記録がありません</div>';
+    } else {
+      records.forEach(function(r) {
+        html += '<div class="record-item">';
+        html += '<div class="ri-left">';
+        html += '<div class="ri-name">' + esc(r.name || r.code || '不明') + '</div>';
+        html += '<div class="ri-date">' + esc(r.date) + (r.memo ? ' ／ ' + esc(r.memo) : '') + '</div>';
+        html += '</div>';
+        html += '<div class="ri-amount">¥' + r.amount.toLocaleString() + '</div>';
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+    html += '<div style="height:40px"></div>';
+
+    document.getElementById('viewRecord').innerHTML = html;
+  }
+
+  function onStockSelect(val) {
+    if (!val) return;
+    var parts = val.split('|');
+    var codeEl = document.getElementById('rCode');
+    var nameEl = document.getElementById('rName');
+    if (codeEl) codeEl.value = parts[0] || '';
+    if (nameEl) nameEl.value = parts[1] || '';
+  }
+
+  function submitRecord() {
+    var date   = document.getElementById('rDate')   ? document.getElementById('rDate').value   : '';
+    var amount = document.getElementById('rAmount') ? document.getElementById('rAmount').value : '';
+    var code   = document.getElementById('rCode')   ? document.getElementById('rCode').value   : '';
+    var name   = document.getElementById('rName')   ? document.getElementById('rName').value   : '';
+    var memo   = document.getElementById('rMemo')   ? document.getElementById('rMemo').value   : '';
+
+    if (!date.trim() || !amount || parseFloat(amount) <= 0) {
+      alert('受取日と受取金額は必須です。');
+      return;
+    }
+
+    var btn = document.getElementById('rSaveBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (!res || !res.ok) {
+          alert('保存エラー: ' + (res && res.message || '不明'));
+          if (btn) { btn.disabled = false; btn.textContent = '💾 保存する'; }
+          return;
+        }
+        recordLoaded = false;
+        loadRecords();
+      })
+      .withFailureHandler(function(err) {
+        alert('保存エラー: ' + err.message);
+        if (btn) { btn.disabled = false; btn.textContent = '💾 保存する'; }
+      })
+      .saveDividendRecord(date.trim(), code.trim(), name.trim(), parseFloat(amount), memo.trim());
   }
 
   // プルトゥリフレッシュ
