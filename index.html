@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>株アプリv2</title>
+  <style>
+    :root {
+      --bg: #f2f2f7;
+      --card: #fff;
+      --text: #1c1c1e;
+      --sub: #6e6e73;
+      --primary: #007aff;
+      --success: #34c759;
+      --warning: #ff9500;
+      --danger: #ff3b30;
+      --radius: 16px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1e;
+        --card: #2c2c2e;
+        --text: #f2f2f7;
+        --sub: #8e8e93;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+
+    header {
+      background: var(--card);
+      padding: 16px 20px 12px;
+      position: sticky; top: 0; z-index: 10;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+    header h1 { font-size: 1.2rem; font-weight: 700; }
+    header .updated { font-size: 0.75rem; color: var(--sub); margin-top: 2px; }
+
+    .stats {
+      display: flex; gap: 8px; padding: 12px 16px; overflow-x: auto;
+    }
+    .stat-card {
+      background: var(--card); border-radius: 12px; padding: 10px 14px;
+      min-width: 100px; flex-shrink: 0;
+    }
+    .stat-card .label { font-size: 0.7rem; color: var(--sub); }
+    .stat-card .value { font-size: 1.1rem; font-weight: 700; margin-top: 2px; }
+
+    .cards { padding: 0 12px 80px; display: grid; gap: 10px; }
+    @media (min-width: 600px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 900px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      padding: 14px 16px; position: relative;
+    }
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .card-name { font-weight: 700; font-size: 1rem; }
+    .card-code { font-size: 0.8rem; color: var(--sub); margin-top: 2px; }
+    .badge {
+      font-size: 0.75rem; font-weight: 700; padding: 3px 9px;
+      border-radius: 20px; white-space: nowrap;
+    }
+    .badge-buy  { background: #d4f5de; color: #1a7a35; }
+    .badge-sell { background: #fde8e8; color: #c0392b; }
+    .badge-hold { background: #e8e8ee; color: var(--sub); }
+
+    .card-body { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .metric .label { font-size: 0.7rem; color: var(--sub); }
+    .metric .value { font-size: 1rem; font-weight: 600; margin-top: 1px; }
+
+    .gap-bar { margin-top: 10px; }
+    .gap-bar .bar-bg {
+      height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden;
+    }
+    .gap-bar .bar-fill {
+      height: 100%; border-radius: 3px; background: var(--primary); transition: width 0.4s;
+    }
+    .gap-bar .gap-label { font-size: 0.72rem; color: var(--sub); margin-top: 3px; }
+
+    .loading { text-align: center; padding: 60px 20px; color: var(--sub); }
+    .error { background: #fde8e8; color: #c0392b; padding: 16px; border-radius: 12px; margin: 16px; }
+
+    .fab {
+      position: fixed; bottom: 24px; right: 20px;
+      width: 54px; height: 54px; border-radius: 27px;
+      background: var(--primary); color: #fff; border: none;
+      font-size: 1.4rem; cursor: pointer; box-shadow: 0 4px 14px rgba(0,122,255,0.4);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .fab.spinning { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📈 株ダッシュボード</h1>
+  <div class="updated" id="updatedAt">読み込み中...</div>
+</header>
+
+<div class="stats" id="stats"></div>
+<div class="cards" id="cards"><div class="loading">読み込み中...</div></div>
+
+<button class="fab" id="refreshBtn" title="更新">↻</button>
+
+<script>
+  let allItems = [];
+
+  function load() {
+    const btn = document.getElementById('refreshBtn');
+    btn.classList.add('spinning');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        btn.classList.remove('spinning');
+        if (!res.ok) {
+          document.getElementById('cards').innerHTML =
+            '<div class="error">エラー: ' + res.message + '</div>';
+          return;
+        }
+        allItems = res.items || [];
+        document.getElementById('updatedAt').textContent =
+          res.updatedAt ? '最終更新: ' + res.updatedAt : '';
+        renderStats(allItems);
+        renderCards(allItems);
+      })
+      .withFailureHandler(function(err) {
+        btn.classList.remove('spinning');
+        document.getElementById('cards').innerHTML =
+          '<div class="error">読み込みエラー: ' + err.message + '</div>';
+      })
+      .getDisplayData();
+  }
+
+  function renderStats(items) {
+    const buyCount = items.filter(i => i.judge.indexOf('買') !== -1).length;
+    const yields = items
+      .map(i => parseFloat(i.divYield))
+      .filter(v => !isNaN(v));
+    const avgYield = yields.length
+      ? (yields.reduce((a,b) => a+b, 0) / yields.length).toFixed(2)
+      : '-';
+    const gaps = items.map(i => {
+      const d = parseFloat(i.divYield);
+      const e = parseFloat(i.ideal);
+      return (!isNaN(d) && !isNaN(e)) ? d - e : null;
+    }).filter(v => v !== null);
+    const maxGap = gaps.length ? Math.max(...gaps).toFixed(2) : '-';
+
+    document.getElementById('stats').innerHTML = [
+      { label: '全銘柄', value: items.length + '件' },
+      { label: '買い候補', value: buyCount + '件' },
+      { label: '平均配当利回', value: avgYield + '%' },
+      { label: '最大ギャップ', value: maxGap + '%' },
+    ].map(s =>
+      '<div class="stat-card"><div class="label">' + s.label + '</div>' +
+      '<div class="value">' + s.value + '</div></div>'
+    ).join('');
+  }
+
+  function renderCards(items) {
+    if (items.length === 0) {
+      document.getElementById('cards').innerHTML =
+        '<div class="loading">銘柄データがありません</div>';
+      return;
+    }
+
+    const sorted = items.slice().sort((a, b) => {
+      const ga = parseFloat(a.divYield) - parseFloat(a.ideal);
+      const gb = parseFloat(b.divYield) - parseFloat(b.ideal);
+      return (isNaN(gb) ? -99 : gb) - (isNaN(ga) ? -99 : ga);
+    });
+
+    document.getElementById('cards').innerHTML = sorted.map(item => {
+      const isBuy  = item.judge.indexOf('買') !== -1;
+      const isSell = item.judge.indexOf('売') !== -1;
+      const badgeClass = isBuy ? 'badge-buy' : isSell ? 'badge-sell' : 'badge-hold';
+      const badgeText  = isBuy ? '買い' : isSell ? '売り' : '様子見';
+
+      const divY  = parseFloat(item.divYield);
+      const ideal = parseFloat(item.ideal);
+      const gap   = (!isNaN(divY) && !isNaN(ideal)) ? (divY - ideal).toFixed(2) : '-';
+      const barPct = (!isNaN(divY) && !isNaN(ideal) && ideal > 0)
+        ? Math.min(100, Math.round(divY / ideal * 100)) : 0;
+
+      return '<div class="card">' +
+        '<div class="card-header">' +
+          '<div><div class="card-name">' + item.name + '</div>' +
+          '<div class="card-code">' + item.code + '</div></div>' +
+          '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
+        '</div>' +
+        '<div class="card-body">' +
+          '<div class="metric"><div class="label">株価</div><div class="value">¥' + item.price + '</div></div>' +
+          '<div class="metric"><div class="label">配当利回</div><div class="value">' + item.divYield + '%</div></div>' +
+          '<div class="metric"><div class="label">理想利回</div><div class="value">' + item.ideal + '%</div></div>' +
+          '<div class="metric"><div class="label">ギャップ</div><div class="value">' + gap + '%</div></div>' +
+        '</div>' +
+        '<div class="gap-bar">' +
+          '<div class="bar-bg"><div class="bar-fill" style="width:' + barPct + '%"></div></div>' +
+          '<div class="gap-label">理想利回に対して ' + barPct + '%</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', load);
+
+  // 300秒ごとに自動更新
+  load();
+  setInterval(load, 300000);
+</script>
+</body>
+</html>
