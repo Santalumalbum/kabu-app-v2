@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="112" fill="#1a1a2e"/>
+
+  <!-- グラデーション定義 -->
+  <defs>
+    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4facfe"/>
+      <stop offset="100%" stop-color="#00f2fe"/>
+    </linearGradient>
+    <linearGradient id="fillGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4facfe" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#4facfe" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- チャートの塗り面 -->
+  <path d="M80 360 L80 300 L160 260 L240 290 L320 200 L400 150 L430 150 L430 360 Z"
+        fill="url(#fillGrad)"/>
+
+  <!-- チャートライン -->
+  <polyline points="80,300 160,260 240,290 320,200 400,150"
+            fill="none" stroke="url(#lineGrad)" stroke-width="14"
+            stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 上昇矢印の点 -->
+  <circle cx="400" cy="150" r="14" fill="#00f2fe"/>
+
+  <!-- 軸線 -->
+  <line x1="80" y1="360" x2="430" y2="360" stroke="#ffffff" stroke-opacity="0.2" stroke-width="3"/>
+
+  <!-- ¥マーク -->
+  <text x="256" y="460" text-anchor="middle" font-family="Arial, sans-serif"
+        font-size="52" font-weight="bold" fill="#ffffff" fill-opacity="0.5">配当</text>
+</svg>

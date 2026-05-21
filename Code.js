@@ -2,40 +2,52 @@
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('株アプリv2')
+    .setTitle('株ダッシュボード')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
 }
 
+/**
+ * 銘柄リストのデータをWebアプリに返す
+ */
 function getDisplayData() {
   try {
     const ss = getSpreadsheet_();
-    const sh = ss.getSheetByName('銘柄リスト');
-    if (!sh) return { ok: false, message: '「銘柄リスト」シートが見つかりません。' };
+    const sh = ss.getSheetByName(FETCH_CONF.SHEET_NAME);
+    if (!sh) return { ok: false, message: '「銘柄リスト」シートが見つかりません。まず初期セットアップを実行してください。' };
 
     const lastRow = sh.getLastRow();
     const updatedAt = sh.getRange('H1').getDisplayValue();
 
-    if (lastRow < 2) {
-      return { ok: true, items: [], updatedAt: updatedAt };
-    }
+    if (lastRow < 2) return { ok: true, items: [], updatedAt: updatedAt };
 
-    const rows = sh.getRange(2, 1, lastRow - 1, 7).getDisplayValues();
-    // A:コード B:銘柄名 C:株価 D:配当利回 E:理想利回 F:判定 G:メモ
-
+    const rows = sh.getRange(2, 1, lastRow - 1, 9).getDisplayValues();
     const items = rows
-      .filter(r => r[0] || r[1])
+      .filter(r => String(r[0]).trim() || String(r[1]).trim())
       .map(r => ({
-        code:     r[0],
-        name:     r[1],
-        price:    r[2],
-        divYield: r[3],
-        ideal:    r[4],
-        judge:    r[5],
-        memo:     r[6],
+        code:     String(r[0]).trim(),
+        name:     String(r[1]).trim(),
+        price:    String(r[2]).trim(),
+        divYield: String(r[3]).trim(),
+        ideal:    String(r[4]).trim(),
+        judge:    String(r[5]).trim(),
+        source:   String(r[8]).trim(),
       }));
 
     return { ok: true, items: items, updatedAt: updatedAt };
 
+  } catch (err) {
+    Logger.log(err.stack || err);
+    return { ok: false, message: err.message };
+  }
+}
+
+/**
+ * 手動更新ボタンから呼ばれる
+ */
+function runManualUpdate() {
+  try {
+    updateAllStocks();
+    return getDisplayData();
   } catch (err) {
     Logger.log(err.stack || err);
     return { ok: false, message: err.message };
